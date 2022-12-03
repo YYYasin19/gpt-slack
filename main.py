@@ -39,6 +39,13 @@ def message_id_exists(message_id):
   cursor.execute("SELECT * FROM messages WHERE id = ?", (message_id,))
   return cursor.fetchone() is not None
 
+def message_filter(slack_msg) -> bool:
+    return any(['robot_face' in r['name'] for r in slack_msg['reactions']])\
+        and 'subtype' not in slack_msg\
+        and slack_msg['user'] != SLACK_BOT_ID \
+        and not message_id_exists(slack_msg['ts'])\
+        and datetime.fromtimestamp(int(slack_msg['ts'].split('.')[0]))
+
 def slack_worker():
     gpt = GPT()
 
@@ -58,7 +65,7 @@ def slack_worker():
             # Use the Slack API to listen for messages in the specified channel
             messages = client.conversations_history(channel=channel_id)['messages']
 
-            for message in filter(lambda m: 'subtype' not in m and m['user'] != SLACK_BOT_ID and not message_id_exists(m['ts']) and datetime.fromtimestamp(int(m['ts'].split('.')[0])), messages):
+            for message in filter(message_filter, messages):
                 print(f"New Message!\nSample:{message['text'][:30]}")
                 
                 # Use the web query function to perform the search
