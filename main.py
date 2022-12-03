@@ -17,6 +17,7 @@ max_past = current_time - timedelta(hours=1)
 SLACK_BOT_TOKEN = os.environ['SLACK_BOT_TOKEN']
 SLACK_BOT_ID = os.environ['SLACK_BOT_ID']
 SIGNING_SECRET = os.environ['SIGNING_SECRET']
+CHANNEL_ID = os.environ['CHANNEL_ID']
 
 client = WebClient(token=SLACK_BOT_TOKEN)
 
@@ -40,7 +41,8 @@ def message_id_exists(message_id):
   return cursor.fetchone() is not None
 
 def message_filter(slack_msg) -> bool:
-    return any(['robot_face' in r['name'] for r in slack_msg['reactions']])\
+    return 'reactions' in slack_msg and\
+        any(['robot_face' in r['name'] for r in slack_msg['reactions']])\
         and 'subtype' not in slack_msg\
         and slack_msg['user'] != SLACK_BOT_ID \
         and not message_id_exists(slack_msg['ts'])\
@@ -51,28 +53,21 @@ def slack_worker():
 
     ### The following code was written 95%+ by ChatGPT itself ###
     try:
-        # Use the Slack API to listen for messages in the specified channel
-        response = client.conversations_list(exclude_archived=True, limit=5)
-        channels = response['channels']
-        for channel in channels:
-            if channel['name'] == 'dev-helpdesk':
-                channel_id = channel['id']
-                break
 
         # Use a while loop to keep the bot running indefinitely
         while True:
             print('Waiting..')
             # Use the Slack API to listen for messages in the specified channel
-            messages = client.conversations_history(channel=channel_id)['messages']
+            messages = client.conversations_history(channel=CHANNEL_ID)['messages']
 
             for message in filter(message_filter, messages):
-                print(f"New Message!\nSample:{message['text'][:30]}")
+                print(f"New Message!\nSample:{message['text'][:100]}")
                 
                 # Use the web query function to perform the search
                 gpt_response = gpt.query(message['text'])
                 # Use the Slack API to send a message with the query results back to the channel
                 client.chat_postMessage(
-                    channel=channel_id,
+                    channel=CHANNEL_ID,
                     text=gpt_response,
                     thread_ts=message['ts']
                 )
